@@ -43,7 +43,7 @@ __global__ void SoftmaxLossWeightsForwardGPU(const int nthreads,
 			counts[index] = 0;
 		}
 		else {
-			loss[index] = weight_data[s] * -log(max(prob_data[n * dim + label_value * spatial_dim + s],
+			loss[index] = weight_data[n * spatial_dim + s] * -log(max(prob_data[n * dim + label_value * spatial_dim + s],
 				Dtype(FLT_MIN)));
 			counts[index] = 1;
 		}
@@ -157,7 +157,7 @@ __global__ void SoftmaxLossWeightsBackwardGPU(const int nthreads, const Dtype* t
 		else {
 			bottom_diff[n * dim + label_value * spatial_dim + s] -= 1;
 			for (int c = 0; c < channels; ++c) {
-				bottom_diff[n * dim + c * spatial_dim + s] *= weight_data[s];
+				bottom_diff[n * dim + c * spatial_dim + s] *= weight_data[n * spatial_dim + s];
 			}
 			counts[index] = 1;
 		}
