@@ -87,121 +87,127 @@ Dtype SoftmaxWithLossLayer<Dtype>::get_normalizer(
 
 template <typename Dtype>
 void SoftmaxWithLossLayer<Dtype>::Forward_cpu(
-    const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
-  // The forward pass computes the softmax prob values.
-  softmax_layer_->Forward(softmax_bottom_vec_, softmax_top_vec_);
-  const Dtype* prob_data = prob_.cpu_data();
-  const Dtype* label = bottom[1]->cpu_data();
-  int dim = prob_.count() / outer_num_;
-  int count = 0;
-  Dtype loss = 0;
-  if( bottom.size() == 3) {
-      // weighted version using third input blob (weightmap)
-      Dtype weightsum = 0;
-      const Dtype* weight_data = bottom[2]->cpu_data();
-      for (int i = 0; i < outer_num_; ++i) {
-          for (int j = 0; j < inner_num_; j++) {
-            const int label_value = static_cast<int>(label[i * inner_num_ + j]);
-            if (has_ignore_label_ && label_value == ignore_label_) {
-              continue;
-            }
-            DCHECK_GE(label_value, 0);
-            DCHECK_LT(label_value, prob_.channels());
-            loss -= weight_data[j] * 
-                log(std::max(prob_data[i * dim + label_value * inner_num_ + j],
-                             Dtype(FLT_MIN)));
-            weightsum += weight_data[j];
-            ++count;
-          }
-        }
-      
-      top[0]->mutable_cpu_data()[0] = loss / get_normalizer(normalization_, count);
-      if (top.size() == 2) {
-        top[1]->ShareData(prob_);       
-      }
- 
-  } else {  
-      /// standard softmax_loss  
-      for (int i = 0; i < outer_num_; ++i) {
-        for (int j = 0; j < inner_num_; j++) {
-          const int label_value = static_cast<int>(label[i * inner_num_ + j]);
-          if (has_ignore_label_ && label_value == ignore_label_) {
-            continue;
-          }
-          DCHECK_GE(label_value, 0);
-          DCHECK_LT(label_value, prob_.shape(softmax_axis_));
-          loss -= log(std::max(prob_data[i * dim + label_value * inner_num_ + j],
-                               Dtype(FLT_MIN)));
-          ++count;
-        }
-      }
+	const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
+	// The forward pass computes the softmax prob values.
+	softmax_layer_->Forward(softmax_bottom_vec_, softmax_top_vec_);
+	const Dtype* prob_data = prob_.cpu_data();
+	const Dtype* label = bottom[1]->cpu_data();
+	int dim = prob_.count() / outer_num_;
+	int count = 0;
+	Dtype loss = 0;
+	if (bottom.size() == 3) {
+		// weighted version using third input blob (weightmap)
+		Dtype weightsum = 0;
+		const Dtype* weight_data = bottom[2]->cpu_data();
+		for (int i = 0; i < outer_num_; ++i) {
+			for (int j = 0; j < inner_num_; j++) {
+				const int label_value = static_cast<int>(label[i * inner_num_ + j]);
+				if (has_ignore_label_ && label_value == ignore_label_) {
+					continue;
+				}
+				DCHECK_GE(label_value, 0);
+				DCHECK_LT(label_value, prob_.channels());
+				loss -= weight_data[j] *
+					log(std::max(prob_data[i * dim + label_value * inner_num_ + j],
+						Dtype(FLT_MIN)));
+				weightsum += weight_data[j];
+				++count;
+			}
+		}
 
-      top[0]->mutable_cpu_data()[0] = loss / get_normalizer(normalization_, count);
-      if (top.size() == 2) {
-        top[1]->ShareData(prob_);
-      }
-    }
+		top[0]->mutable_cpu_data()[0] = loss / get_normalizer(normalization_, count);
+		if (top.size() == 2) {
+			top[1]->ShareData(prob_);
+		}
+
+	}
+	else {
+		/// standard softmax_loss  
+		for (int i = 0; i < outer_num_; ++i) {
+			for (int j = 0; j < inner_num_; j++) {
+				const int label_value = static_cast<int>(label[i * inner_num_ + j]);
+				if (has_ignore_label_ && label_value == ignore_label_) {
+					continue;
+				}
+				DCHECK_GE(label_value, 0);
+				DCHECK_LT(label_value, prob_.shape(softmax_axis_));
+				loss -= log(std::max(prob_data[i * dim + label_value * inner_num_ + j],
+					Dtype(FLT_MIN)));
+				++count;
+			}
+		}
+
+		top[0]->mutable_cpu_data()[0] = loss / get_normalizer(normalization_, count);
+		if (top.size() == 2) {
+			top[1]->ShareData(prob_);
+		}
+	}
+}
 
 template <typename Dtype>
 void SoftmaxWithLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
-    const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
-  if (propagate_down[1]) {
-    LOG(FATAL) << this->type()
-               << " Layer cannot backpropagate to label inputs.";
-  }
-  if (propagate_down[0]) {
-    Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
-    const Dtype* prob_data = prob_.cpu_data();
-    caffe_copy(prob_.count(), prob_data, bottom_diff);
-    const Dtype* label = bottom[1]->cpu_data();
-    int dim = prob_.count() / outer_num_;
-    int count = 0;
-    if( bottom.size() == 3) {
-         // weighted version using a third input blob (by Olaf)
-      Dtype weightsum = 0;
-      const Dtype* weight_data = bottom[2]->cpu_data();
-      for (int i = 0; i < outer_num_; ++i) {
-        for (int j = 0; j < inner_num_; ++j) {
-          const int label_value = static_cast<int>(label[i * inner_num_ + j]);
-          if (has_ignore_label_ && label_value == ignore_label_) {
-            for (int c = 0; c < bottom[0]->shape(softmax_axis_); ++c) {
-                bottom_diff[i * dim + c * inner_num_ + j] = 0;
-            }
-          } else {
-            bottom_diff[i * dim + label_value * inner_num_ + j] -= 1;
-            for (int c = 0; c < bottom[0]->shape(softmax_axis_); ++c) {
-              bottom_diff[i * dim + c * inner_num_ + j] *= weight_data[j];
-            }
-            weightsum += weight_data[j];
-            ++count;
-          }
-        }
-      }
-      // Scale gradient
-     Dtype loss_weight = top[0]->cpu_diff()[0] /
-                        get_normalizer(normalization_, count);
-     caffe_scal(prob_.count(), loss_weight, bottom_diff);
-    
-    } else {
-    /// standard softmax_loss
-    for (int i = 0; i < outer_num_; ++i) {
-      for (int j = 0; j < inner_num_; ++j) {
-        const int label_value = static_cast<int>(label[i * inner_num_ + j]);
-        if (has_ignore_label_ && label_value == ignore_label_) {
-          for (int c = 0; c < bottom[0]->shape(softmax_axis_); ++c) {
-            bottom_diff[i * dim + c * inner_num_ + j] = 0;
-          }
-        } else {
-          bottom_diff[i * dim + label_value * inner_num_ + j] -= 1;
-          ++count;
-        }
-      }
-    }
-    // Scale gradient
-    Dtype loss_weight = top[0]->cpu_diff()[0] /
-                        get_normalizer(normalization_, count);
-    caffe_scal(prob_.count(), loss_weight, bottom_diff);
-  }
+	const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
+	if (propagate_down[1]) {
+		LOG(FATAL) << this->type()
+			<< " Layer cannot backpropagate to label inputs.";
+	}
+	if (propagate_down[0]) {
+		Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
+		const Dtype* prob_data = prob_.cpu_data();
+		caffe_copy(prob_.count(), prob_data, bottom_diff);
+		const Dtype* label = bottom[1]->cpu_data();
+		int dim = prob_.count() / outer_num_;
+		int count = 0;
+		if (bottom.size() == 3) {
+			// weighted version using a third input blob (by Olaf)
+			Dtype weightsum = 0;
+			const Dtype* weight_data = bottom[2]->cpu_data();
+			for (int i = 0; i < outer_num_; ++i) {
+				for (int j = 0; j < inner_num_; ++j) {
+					const int label_value = static_cast<int>(label[i * inner_num_ + j]);
+					if (has_ignore_label_ && label_value == ignore_label_) {
+						for (int c = 0; c < bottom[0]->shape(softmax_axis_); ++c) {
+							bottom_diff[i * dim + c * inner_num_ + j] = 0;
+						}
+					}
+					else {
+						bottom_diff[i * dim + label_value * inner_num_ + j] -= 1;
+						for (int c = 0; c < bottom[0]->shape(softmax_axis_); ++c) {
+							bottom_diff[i * dim + c * inner_num_ + j] *= weight_data[j];
+						}
+						weightsum += weight_data[j];
+						++count;
+					}
+				}
+			}
+			// Scale gradient
+			Dtype loss_weight = top[0]->cpu_diff()[0] /
+				get_normalizer(normalization_, count);
+			caffe_scal(prob_.count(), loss_weight, bottom_diff);
+
+		}
+		else {
+			/// standard softmax_loss
+			for (int i = 0; i < outer_num_; ++i) {
+				for (int j = 0; j < inner_num_; ++j) {
+					const int label_value = static_cast<int>(label[i * inner_num_ + j]);
+					if (has_ignore_label_ && label_value == ignore_label_) {
+						for (int c = 0; c < bottom[0]->shape(softmax_axis_); ++c) {
+							bottom_diff[i * dim + c * inner_num_ + j] = 0;
+						}
+					}
+					else {
+						bottom_diff[i * dim + label_value * inner_num_ + j] -= 1;
+						++count;
+					}
+				}
+			}
+			// Scale gradient
+			Dtype loss_weight = top[0]->cpu_diff()[0] /
+				get_normalizer(normalization_, count);
+			caffe_scal(prob_.count(), loss_weight, bottom_diff);
+		}
+	}
 }
 
 #ifdef CPU_ONLY
