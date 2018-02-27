@@ -24,6 +24,7 @@ class SoftmaxWithLossLayerTest : public MultiDeviceTest<TypeParam> {
   SoftmaxWithLossLayerTest()
       : blob_bottom_data_(new Blob<Dtype>(10, 5, 2, 3)),
         blob_bottom_label_(new Blob<Dtype>(10, 1, 2, 3)),
+        blob_bottom_weights_(new Blob<Dtype>(10, 1, 2, 3)),
         blob_top_loss_(new Blob<Dtype>()) {
     // fill the values
     FillerParameter filler_param;
@@ -33,17 +34,21 @@ class SoftmaxWithLossLayerTest : public MultiDeviceTest<TypeParam> {
     blob_bottom_vec_.push_back(blob_bottom_data_);
     for (int i = 0; i < blob_bottom_label_->count(); ++i) {
       blob_bottom_label_->mutable_cpu_data()[i] = caffe_rng_rand() % 5;
+      blob_bottom_weights_->mutable_cpu_data()[i] = caffe_rng_rand() % 5;
     }
     blob_bottom_vec_.push_back(blob_bottom_label_);
+    blob_bottom_vec_.push_back(blob_bottom_weights_);
     blob_top_vec_.push_back(blob_top_loss_);
   }
   virtual ~SoftmaxWithLossLayerTest() {
     delete blob_bottom_data_;
     delete blob_bottom_label_;
+    delete blob_bottom_weights_;
     delete blob_top_loss_;
   }
   Blob<Dtype>* const blob_bottom_data_;
   Blob<Dtype>* const blob_bottom_label_;
+  Blob<Dtype>* const blob_bottom_weights_;
   Blob<Dtype>* const blob_top_loss_;
   vector<Blob<Dtype>*> blob_bottom_vec_;
   vector<Blob<Dtype>*> blob_top_vec_;
