@@ -32,7 +32,6 @@ WORKDIR $CAFFE_ROOT
 ENV CLONE_TAG=btcrabb
 
 RUN git clone -b ${CLONE_TAG} --depth 1 https://github.com/btcrabb/caffe.git . && \
-    cp Targets.cmake /caffe/cmake/ && \
     pip install --upgrade pip && \
     cd python && for req in $(cat requirements.txt) pydot; do pip install $req; done && cd .. && \
     git clone https://github.com/NVIDIA/nccl.git && cd nccl && make -j install && cd .. && rm -rf nccl && \
