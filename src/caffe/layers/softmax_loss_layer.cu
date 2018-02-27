@@ -37,13 +37,14 @@ __global__ void SoftmaxLossWeightsForwardGPU(const int nthreads,
 	CUDA_KERNEL_LOOP(index, nthreads) {
 		const int n = index / spatial_dim;
 		const int s = index % spatial_dim;
-		const int label_value = static_cast<int>(label[n * spatial_dim + s]);
+		const int label_value = static_cast<int>(label[n * spatial_dim + s])
+		const int weight_value = static_cast<int>(weight_data[n * spatial_dim + s]);
 		if (has_ignore_label_ && label_value == ignore_label_) {
 			loss[index] = 0;
 			counts[index] = 0;
 		}
 		else {
-			loss[index] = weight_data[n * spatial_dim + s] * -log(max(prob_data[n * dim + label_value * spatial_dim + s],
+			loss[index] = weight_value * -log(max(prob_data[n * dim + label_value * spatial_dim + s],
 				Dtype(FLT_MIN)));
 			counts[index] = 1;
 		}
@@ -147,6 +148,7 @@ __global__ void SoftmaxLossWeightsBackwardGPU(const int nthreads, const Dtype* t
 		const int n = index / spatial_dim;
 		const int s = index % spatial_dim;
 		const int label_value = static_cast<int>(label[n * spatial_dim + s]);
+		const int weight_value = static_cast<int>(weight_data[n * spatial_dim + s]);
 
 		if (has_ignore_label_ && label_value == ignore_label_) {
 			for (int c = 0; c < channels; ++c) {
@@ -157,7 +159,7 @@ __global__ void SoftmaxLossWeightsBackwardGPU(const int nthreads, const Dtype* t
 		else {
 			bottom_diff[n * dim + label_value * spatial_dim + s] -= 1;
 			for (int c = 0; c < channels; ++c) {
-				bottom_diff[n * dim + c * spatial_dim + s] *= weight_data[n * spatial_dim + s];
+				bottom_diff[n * dim + c * spatial_dim + s] *= weight_value;
 			}
 			counts[index] = 1;
 		}
