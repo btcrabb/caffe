@@ -32,7 +32,7 @@ class Segmenter(caffe.Net):
         """
 
         input_ = np.zeros((len(inputs),
-            500, 500, inputs[0].shape[2]),
+            inputs[0].shape[0], inputs[0].shape[1], inputs[0].shape[2]),
             dtype=np.float32)
         for ix, in_ in enumerate(inputs):
             input_[ix] = in_
